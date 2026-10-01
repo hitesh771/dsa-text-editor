@@ -1,67 +1,77 @@
-import { Rope } from '../src/rope';
+import test, { describe } from 'node:test';
+import assert from 'node:assert';
+import { Rope } from '../src/rope.ts';
 
-describe('Rope Data Structure', () => {
+describe('Server Rope Data Structure (AVL-Balanced)', () => {
   test('Create empty rope', () => {
     const rope = new Rope();
-    expect(rope.length()).toBe(0);
-    expect(rope.toString()).toBe('');
+    assert.strictEqual(rope.length(), 0);
+    assert.strictEqual(rope.toString(), '');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Create rope with initial text', () => {
     const rope = new Rope('Hello World');
-    expect(rope.length()).toBe(11);
-    expect(rope.toString()).toBe('Hello World');
+    assert.strictEqual(rope.length(), 11);
+    assert.strictEqual(rope.toString(), 'Hello World');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Insert at position 0', () => {
     const rope = new Rope('World');
     rope.insert(0, 'Hello ');
-    expect(rope.toString()).toBe('Hello World');
-    expect(rope.length()).toBe(11);
+    assert.strictEqual(rope.toString(), 'Hello World');
+    assert.strictEqual(rope.length(), 11);
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Insert at middle position', () => {
     const rope = new Rope('Hello World');
     rope.insert(6, 'Beautiful ');
-    expect(rope.toString()).toBe('Hello Beautiful World');
+    assert.strictEqual(rope.toString(), 'Hello Beautiful World');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Insert at end position', () => {
     const rope = new Rope('Hello');
     rope.insert(5, ' World');
-    expect(rope.toString()).toBe('Hello World');
+    assert.strictEqual(rope.toString(), 'Hello World');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Delete at start', () => {
     const rope = new Rope('Hello World');
     rope.delete(0, 6);
-    expect(rope.toString()).toBe('World');
+    assert.strictEqual(rope.toString(), 'World');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Delete at middle', () => {
     const rope = new Rope('Hello Beautiful World');
     rope.delete(6, 10);
-    expect(rope.toString()).toBe('Hello World');
+    assert.strictEqual(rope.toString(), 'Hello World');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Delete at end', () => {
     const rope = new Rope('Hello World');
     rope.delete(5, 6);
-    expect(rope.toString()).toBe('Hello');
+    assert.strictEqual(rope.toString(), 'Hello');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('charAt for all positions', () => {
     const rope = new Rope('Hello');
-    expect(rope.charAt(0)).toBe('H');
-    expect(rope.charAt(1)).toBe('e');
-    expect(rope.charAt(4)).toBe('o');
+    assert.strictEqual(rope.charAt(0), 'H');
+    assert.strictEqual(rope.charAt(1), 'e');
+    assert.strictEqual(rope.charAt(4), 'o');
   });
 
   test('substring edge cases', () => {
     const rope = new Rope('Hello World');
-    expect(rope.substring(0, 5)).toBe('Hello');
-    expect(rope.substring(6, 11)).toBe('World');
-    expect(rope.substring(0, 11)).toBe('Hello World');
+    assert.strictEqual(rope.substring(0, 5), 'Hello');
+    assert.strictEqual(rope.substring(6, 11), 'World');
+    assert.strictEqual(rope.substring(0, 11), 'Hello World');
   });
 
   test('Multiple insertions maintain structure', () => {
@@ -71,14 +81,16 @@ describe('Rope Data Structure', () => {
     rope.insert(2, 'c');
     rope.insert(3, 'd');
     rope.insert(4, 'e');
-    expect(rope.toString()).toBe('abcde');
+    assert.strictEqual(rope.toString(), 'abcde');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Multiple deletions maintain structure', () => {
     const rope = new Rope('abcdefgh');
     rope.delete(6, 2);  // Remove 'gh'
     rope.delete(4, 2);  // Remove 'ef'
-    expect(rope.toString()).toBe('abcd');
+    assert.strictEqual(rope.toString(), 'abcd');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Mixed operations', () => {
@@ -86,21 +98,24 @@ describe('Rope Data Structure', () => {
     rope.insert(5, ' ');
     rope.insert(6, 'World');
     rope.delete(0, 6);
-    expect(rope.toString()).toBe('World');
+    assert.strictEqual(rope.toString(), 'World');
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Handle Unicode and emoji', () => {
     const rope = new Rope('Hello 🌍');
-    expect(rope.toString()).toBe('Hello 🌍');
+    assert.strictEqual(rope.toString(), 'Hello 🌍');
     rope.insert(6, '👋 ');
-    expect(rope.toString()).toContain('👋');
+    assert.ok(rope.toString().includes('👋'));
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 
   test('Large document handling', () => {
     const text = 'a'.repeat(1000);
     const rope = new Rope(text);
-    expect(rope.length()).toBe(1000);
+    assert.strictEqual(rope.length(), 1000);
     rope.insert(500, 'X');
-    expect(rope.length()).toBe(1001);
+    assert.strictEqual(rope.length(), 1001);
+    assert.strictEqual(rope.checkInvariants().valid, true);
   });
 });
