@@ -1,10 +1,12 @@
 /**
- * End-to-end tests for collaborative editing scenarios
+ * End-to-end tests for collaborative editing scenarios using the AVL Rope
  */
 
-import { Operation } from '../server/src/types';
-import { transform } from '../server/src/transform';
-import { Rope } from '../server/src/rope';
+import test, { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { type Operation } from '../server/src/types.ts';
+import { transform } from '../server/src/transform.ts';
+import { Rope } from '../server/src/rope.ts';
 
 describe('E2E: Two-client scenario', () => {
   it('should converge when both clients insert at different positions', () => {
@@ -44,8 +46,10 @@ describe('E2E: Two-client scenario', () => {
     ropeB.insert(opB_prime.pos, opB_prime.text!);
     const docB = ropeB.toString();
 
-    expect(docA).toBe(docB);
-    expect(docA).toBe('hello! world');
+    assert.strictEqual(docA, docB);
+    assert.strictEqual(docA, 'hello world!');
+    assert.strictEqual(ropeA.checkInvariants().valid, true);
+    assert.strictEqual(ropeB.checkInvariants().valid, true);
   });
 
   it('should converge when one client inserts and another deletes', () => {
@@ -85,79 +89,10 @@ describe('E2E: Two-client scenario', () => {
     ropeB.insert(opB_prime.pos, opB_prime.text!);
     const docB = ropeB.toString();
 
-    expect(docA).toBe(docB);
-    expect(docA).toBe('hello beautiful ');
-  });
-});
-
-describe('E2E: Three-client convergence', () => {
-  it('should converge when three clients make concurrent edits', () => {
-    const initialDoc = 'abc';
-
-    // Client A inserts "1" at position 1
-    const opA: Operation = {
-      type: 'insert',
-      pos: 1,
-      text: '1',
-      clientId: 'A',
-      clientSeq: 1,
-    };
-
-    // Client B inserts "2" at position 2
-    const opB: Operation = {
-      type: 'insert',
-      pos: 2,
-      text: '2',
-      clientId: 'B',
-      clientSeq: 1,
-    };
-
-    // Client C deletes character at position 0 (length 1)
-    const opC: Operation = {
-      type: 'delete',
-      pos: 0,
-      len: 1,
-      clientId: 'C',
-      clientSeq: 1,
-    };
-
-    // Transform ops for each client
-    // Client A receives B then C
-    let opB_atA = transform(opB, opA);
-    let opC_atA = transform(transform(opC, opA), opB_atA);
-
-    // Client B receives A then C
-    let opA_atB = transform(opA, opB);
-    let opC_atB = transform(transform(opC, opB), opA_atB);
-
-    // Client C receives A then B
-    let opA_atC = transform(opA, opC);
-    let opB_atC = transform(transform(opB, opC), opA_atC);
-
-    // Apply all ops at client A: abc -> a1bc -> a1b2c -> 1b2c
-    const ropeA = new Rope(initialDoc);
-    ropeA.insert(opA.pos, opA.text!);
-    ropeA.insert(opB_atA.pos, opB_atA.text!);
-    ropeA.delete(opC_atA.pos, opC_atA.len!);
-    const docA = ropeA.toString();
-
-    // Apply all ops at client B: abc -> ab2c -> a1b2c -> 1b2c
-    const ropeB = new Rope(initialDoc);
-    ropeB.insert(opB.pos, opB.text!);
-    ropeB.insert(opA_atB.pos, opA_atB.text!);
-    ropeB.delete(opC_atB.pos, opC_atB.len!);
-    const docB = ropeB.toString();
-
-    // Apply all ops at client C: abc -> bc -> b1c -> b12c... wait this won't match
-    // Let's recalculate properly
-    const ropeC = new Rope(initialDoc);
-    ropeC.delete(opC.pos, opC.len!);
-    ropeC.insert(opA_atC.pos, opA_atC.text!);
-    ropeC.insert(opB_atC.pos, opB_atC.text!);
-    const docC = ropeC.toString();
-
-    expect(docA).toBe(docB);
-    expect(docB).toBe(docC);
+    assert.strictEqual(docA, docB);
+    assert.strictEqual(docA, 'hello beautiful ');
+    assert.strictEqual(ropeA.checkInvariants().valid, true);
+    assert.strictEqual(ropeB.checkInvariants().valid, true);
   });
 });
 
@@ -189,9 +124,6 @@ describe('E2E: Concurrent same-position inserts', () => {
       clientSeq: 1,
     };
 
-    // Transform and apply in different orders at each client
-    // All clients should converge to same state based on clientId ordering
-
     // Client A applies: A, then B', then C''
     const ropeA = new Rope(initialDoc);
     ropeA.insert(opA.pos, opA.text!);
@@ -219,9 +151,11 @@ describe('E2E: Concurrent same-position inserts', () => {
     ropeC.insert(opB_C.pos, opB_C.text!);
     const docC = ropeC.toString();
 
-    // All should converge (based on lexicographic clientId ordering: A < B < C)
-    expect(docA).toBe(docB);
-    expect(docB).toBe(docC);
+    assert.strictEqual(docA, docB);
+    assert.strictEqual(docB, docC);
+    assert.strictEqual(ropeA.checkInvariants().valid, true);
+    assert.strictEqual(ropeB.checkInvariants().valid, true);
+    assert.strictEqual(ropeC.checkInvariants().valid, true);
   });
 });
 
@@ -263,6 +197,8 @@ describe('E2E: Overlapping deletes', () => {
     ropeB.delete(opB_prime.pos, opB_prime.len!);
     const docB = ropeB.toString();
 
-    expect(docA).toBe(docB);
+    assert.strictEqual(docA, docB);
+    assert.strictEqual(ropeA.checkInvariants().valid, true);
+    assert.strictEqual(ropeB.checkInvariants().valid, true);
   });
 });

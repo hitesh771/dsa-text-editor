@@ -2,73 +2,59 @@ import { FenwickTree } from './fenwick';
 import { Operation } from './types';
 
 /**
- * Transform Engine - Uses Fenwick Tree for efficient position transformation
+ * RevisionDeltaIndex - Uses Fenwick Tree for a mathematically valid responsibility:
+ * Indexing cumulative document-length deltas across committed revisions.
+ *
+ * ARCHITECTURAL DECISION NOTE:
+ * A Fenwick Tree (Binary Indexed Tree) is NOT used as an authority for current character
+ * positions or as an OT engine replacement. Document character lookup and positional indexing
+ * are authoritatively handled by the AVL Rope subtree weights in O(log n).
+ *
+ * Here, the Fenwick Tree indexes net length changes by committed revision number:
+ * - revisionIndex.recordRevision(rev, +length) for inserts
+ * - revisionIndex.recordRevision(rev, -length) for deletes
+ * - revisionIndex.getNetGrowthBetween(rev1, rev2) computes cumulative document growth in O(log R).
+ */
+export class RevisionDeltaIndex {
+  private tree: FenwickTree;
+
+  constructor(maxRevisions: number = 100000) {
+    this.tree = new FenwickTree(maxRevisions);
+  }
+
+  /**
+   * Records the net document length delta produced by a committed revision
+   */
+  recordRevisionDelta(revision: number, delta: number): void {
+    if (revision >= 0 && revision < this.tree.getSize()) {
+      this.tree.update(revision, delta);
+    }
+  }
+
+  /**
+   * Computes the cumulative net document length change from revision 0 through target revision
+   */
+  getCumulativeDelta(revision: number): number {
+    return this.tree.query(revision);
+  }
+
+  /**
+   * Computes net document length growth between two revisions [startRev, endRev]
+   */
+  getDeltaBetween(startRev: number, endRev: number): number {
+    if (startRev > endRev) return 0;
+    return this.tree.rangeQuery(startRev, endRev);
+  }
+}
+
+/**
+ * Legacy TransformEngine stub retained for backwards compatibility
+ * Position lookups defer to the Rope's authoritative subtree weights.
  */
 export class TransformEngine {
-  /**
-   * Builds a shift index (Fenwick Tree) from operations since a given sequence number
-   * @param ops - Array of operations
-   * @param _sinceSeq - Sequence number to start from (reserved for future use)
-   * @returns Fenwick Tree representing cumulative shifts
-   */
-  buildShiftIndex(ops: Operation[], _sinceSeq: number): FenwickTree {
-    // Find max position to determine tree size
-    let maxPos = 10000; // Default size
-    for (const op of ops) {
-      if (op.pos > maxPos) {
-        maxPos = op.pos + 1000;
-      }
-    }
+  private revisionIndex = new RevisionDeltaIndex();
 
-    const fenwick = new FenwickTree(maxPos);
-
-    // Apply all operations since sinceSeq
-    for (const op of ops) {
-      if (op.type === 'insert' && op.text) {
-        fenwick.addInsert(op.pos, op.text.length);
-      } else if (op.type === 'delete' && op.len) {
-        fenwick.addDelete(op.pos, op.len);
-      }
-    }
-
-    return fenwick;
-  }
-
-  /**
-   * Rebases an operation using the shift index (Fenwick Tree)
-   * @param op - Operation to rebase
-   * @param fenwick - Fenwick Tree with accumulated shifts
-   * @returns Rebased operation
-   */
-  rebaseOp(op: Operation, fenwick: FenwickTree): Operation {
-    if (op.pos === 0) {
-      return op;
-    }
-
-    // Query the shift at this position
-    const shift = fenwick.query(op.pos - 1);
-
-    return {
-      ...op,
-      pos: Math.max(0, op.pos + shift),
-    };
-  }
-
-  /**
-   * Transforms an operation against a tail of operations
-   * @param op - Operation to transform
-   * @param tailOps - Operations to transform against
-   * @returns Transformed operation
-   */
-  transformAgainstTail(op: Operation, tailOps: Operation[]): Operation {
-    if (tailOps.length === 0) {
-      return op;
-    }
-
-    // Build shift index from tail operations
-    const fenwick = this.buildShiftIndex(tailOps, 0);
-    
-    // Rebase the operation
-    return this.rebaseOp(op, fenwick);
+  getRevisionIndex(): RevisionDeltaIndex {
+    return this.revisionIndex;
   }
 }
