@@ -613,3 +613,106 @@ code {
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   pointer-events: none;
 }
+
+
+/* Atomic Embed Reference Styling */
+.embed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: 0 4px;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: #1e293b;
+  user-select: none;
+  cursor: default;
+  vertical-align: middle;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.embed-badge:hover {
+  background-color: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+
+/* Document and Revision Header Badges */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-badge, .rev-badge {
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.doc-badge {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+.rev-badge {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* Embed Badges and Media */
+.embed-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin: 0 3px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1e293b;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.embed-badge.embed-image {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.embed-badge.embed-csv {
+  background: #fefce8;
+  border-color: #fef08a;
+  color: #854d0e;
+}
+
+.embed-badge.embed-pdf {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.inline-embed-img {
+  max-height: 80px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.inline-embed-link {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.inline-embed-link:hover {
+  text-decoration: underline;
+}

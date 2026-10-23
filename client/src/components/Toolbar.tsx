@@ -140,6 +140,31 @@ export const Toolbar = memo(function Toolbar({ onFormat }: ToolbarProps) {
 
         <button
           className="toolbar-button"
+          onClick={() => handleButtonClick('image')}
+          title="Insert Image Embed"
+          aria-label="Insert Image Embed"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="5.5" cy="5.5" r="1.5" fill="currentColor" />
+            <path d="M14 11l-3.5-3.5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        <button
+          className="toolbar-button"
+          onClick={() => handleButtonClick('file')}
+          title="Insert File Embed"
+          aria-label="Insert File Embed"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 2h5l4 4v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M9 2v4h4" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        </button>
+
+        <button
+          className="toolbar-button"
           onClick={() => handleButtonClick('code')}
           title="Code Block"
           aria-label="Code Block"
@@ -241,6 +266,27 @@ export const Toolbar = memo(function Toolbar({ onFormat }: ToolbarProps) {
               stroke="currentColor"
               strokeWidth="1.5"
               strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div className="toolbar-separator" />
+
+      <div className="toolbar-group">
+        <button
+          className="toolbar-button"
+          onClick={() => handleButtonClick('uploadFile')}
+          title="Upload Asset (Image, PDF, CSV, File)"
+          aria-label="Upload Asset"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M8 10V2M5 5l3-3 3 3M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           </svg>
         </button>
