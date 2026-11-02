@@ -1,12 +1,13 @@
 {
   "name": "collab-text-editor-server",
+  "type": "module",
   "version": "1.0.0",
   "description": "WebSocket server for collaborative text editor",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "start": "node --experimental-strip-types src/index.ts",
+    "dev": "node --experimental-strip-types src/index.ts",
     "test": "jest",
     "test:coverage": "jest --coverage"
   },

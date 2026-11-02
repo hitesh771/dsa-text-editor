@@ -7,6 +7,9 @@ dist
 .vscode
 coverage
 server/logs
+server/data
+server/uploads
+tmp_*
 *.log
 *.tmp
 
