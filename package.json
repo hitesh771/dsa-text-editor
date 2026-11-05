@@ -1,0 +1,15 @@
+{
+  "name": "dsa-text-editor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "node --experimental-strip-types server/src/index.ts",
+    "client:a": "npm --prefix client run dev:a",
+    "client:b": "npm --prefix client run dev:b",
+    "client:c": "npm --prefix client run dev:c",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "test:all": "node --experimental-strip-types --test test/rope.phase1.test.ts server/test/rope.test.ts test/e2e.test.ts test/fenwick.edge.test.ts test/benchmark.test.ts test/ot.phase2.test.ts test/phase3.test.ts test/phase4.test.ts"
+  }
+}
+

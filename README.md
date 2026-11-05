@@ -2,13 +2,14 @@
 
 <div align="center">
 
-**A production-grade real-time collaborative text editor built with advanced data structures and operational transformation algorithms**
+**A production-grade, real-time collaborative text editor built with advanced data structures, operational transformation, persistent SQLite revision storage, and decoupled binary asset management.**
 
-[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL%20Mode-blue.svg)](https://sqlite.org/)
+[![Tests](https://img.shields.io/badge/Tests-79%20Passing-success.svg)](#-automated-testing)
 
-[Features](#-features) • [Architecture](#-architecture) • [Data Structures](#-data-structures) • [Getting Started](#-getting-started) • [Documentation](#-documentation)
+[Features](#-features) • [Architecture](#-architecture) • [Data Structures & Algorithms](#-data-structures--algorithms) • [Multi-Client Setup](#-multi-client-local-setup) • [Testing](#-automated-testing) • [Project Structure](#-project-structure)
 
 </div>
 
@@ -16,334 +17,203 @@
 
 ## 📖 Overview
 
-This project demonstrates a **real-time collaborative text editing system** that enables multiple users to edit documents simultaneously without conflicts. Built by Computer Science students from **IIT Jodhpur**, this editor showcases the practical implementation of three advanced data structures alongside operational transformation algorithms for distributed system consistency.
+This project implements an authoritative, distributed collaborative text editing system that guarantees conflict-free document convergence across multiple concurrent browser clients running on distinct network origins.
 
-### Key Highlights
-
-- ⚡ **High Performance**: < 5ms operation latency, 60 FPS UI responsiveness
-- 🔄 **Conflict-Free**: Guaranteed convergence using Operational Transform
-- 🎯 **Efficient Operations**: O(log n) complexity for all core operations
-- 🌐 **Real-time Sync**: WebSocket-based low-latency communication
-- 🎨 **Multi-user Support**: Color-coded cursor tracking and presence indicators
+Built around a mathematically balanced **AVL Rope**, an **Operational Transformation (OT) Engine with non-subsuming split deletion**, an **Augmented AVL Interval Tree** for real-time collaborator selection tracking, a **Fenwick Tree** revision index, durable **SQLite revision & snapshot persistence**, and an **HTTP Asset Management System**.
 
 ---
 
 ## ✨ Features
 
-### Core Capabilities
+### 1. Document & Text Architecture
+- **Client & Server AVL Rope**: True balanced binary tree maintaining strict $O(\log n)$ depth under thousands of sequential and random edits. Both client and server represent document state via independent in-memory Ropes.
+- **Atomic Embed References**: Images, PDFs, and uploaded files occupy exactly 1 logical unit in the Rope, while raw binary data is stored completely separately.
+- **UTF-16 Positional Alignment**: Unified coordinate space shared across browser selection ranges, Rope leaves, and revision operations, preserving surrogate pairs and emojis.
 
-- **Real-time Collaboration**: Multiple users can edit simultaneously with conflict-free convergence
-- **Advanced Data Structures**: 
-  - **Rope** (Balanced Binary Tree) - O(log n) text operations
-  - **Fenwick Tree** (Binary Indexed Tree) - O(log n) position tracking
-  - **Interval Tree** (Augmented Red-Black BST) - O(log n) cursor queries
-- **Operational Transform**: Guaranteed convergence for concurrent edits
-- **Remote Cursors**: Color-coded real-time cursor tracking
-- **WebSocket Communication**: Low-latency bidirectional updates
-- **Auto-reconnection**: Resilient client connection management
+### 2. Operational Transformation (OT) & Queues
+- **Authoritative Server Pipeline**: Server validates base revisions, slices intervening history, transforms incoming operations, and atomically commits them to the master Rope.
+- **Jupiter Client Queue Lifecycle**: Keystrokes are immediately applied optimistically to the local Rope. The first operation enters an in-flight `outstandingOp` awaiting server ACK, while subsequent typing is enqueued in a secondary `bufferQueue` and promoted sequentially upon ACK receipt.
+- **Non-Subsuming Split Deletion**: When a user deletes a range $[D, D + L_D)$ and another user concurrently inserts text inside that range, the deletion is dynamically split into two distinct sub-operations around the insertion, completely preserving the inserted content without subsuming or corrupting it.
+- **Deterministic Tie-Breaking**: Same-position simultaneous insertions are ordered deterministically using client identifiers.
 
-### Performance Metrics
+### 3. Selection Tracking & Presence
+- **Augmented AVL Interval Tree**: Indexes active collaborators' selection ranges $[start, end)$ in $O(\log n)$ time.
+- **Overlap Detection**: Subtree maximum endpoint pruning detects intersecting user selections in real time.
+- **Edit Shifting (`shiftAll`)**: Every committed operation automatically shifts active selection intervals in the tree to keep collaborator selections in sync with the current document revision.
+- **Stale Presence Cleanup**: Automatically purges disconnected or stale user intervals using time-to-live (TTL) expiration.
 
-| Metric | Target | Status |
-|--------|--------|--------|
-| Rope insert/delete | < 5ms for 10k chars | ✅ Achieved |
-| Fenwick query | < 1ms for 100k positions | ✅ Achieved |
-| Interval tree query | < 2ms for 100 cursors | ✅ Achieved |
-| OT transform | < 1ms per operation | ✅ Achieved |
-| Server broadcast | < 50ms P95 latency | ✅ Achieved |
-| UI responsiveness | 60 FPS during edits | ✅ Achieved |
-| Document size | 100k+ characters | ✅ Supported |
+### 4. Persistent Revision Manager & Crash Recovery
+- **ACID SQLite Storage**: Uses SQLite with Write-Ahead Logging (`WAL`) to atomically commit operations, update global revisions, and store ordered operation logs.
+- **Duplicate Detection**: Processed operation IDs prevent duplicate applications and provide idempotent ACK recovery for dropped network packets.
+- **Periodic Snapshots**: Automatically creates snapshots every 10 revisions containing serialized document pieces and embed references.
+- **Crash Recovery**: Server rebuilds authoritative master documents on startup by loading the latest snapshot and replaying subsequent operations.
+- **History Gap Recovery**: Reconnecting clients request missed revision ranges via `history_request` and catch up seamlessly.
+
+### 5. Decoupled Asset Management
+- **Persistent Local File Storage**: External storage directory decoupling heavy binary bytes from document text.
+- **Magic Byte Signature Validation**: Enforces content validation using binary headers (PNG, JPEG, PDF, CSV), rejecting spoofed or malformed files.
+- **Image Metadata Extraction**: Automatically parses image dimensions (width/height) from PNG `IHDR` and JPEG `SOF` chunks, computing SHA-256 checksums.
+- **Dual CSV Handling**:
+  - **Pasted CSV**: Intercepted as text and processed through character-level OT.
+  - **Uploaded CSV**: Stored as an external asset and represented by an atomic `EmbedRef` with download endpoints.
 
 ---
 
 ## 🏗️ Architecture
 
-### System Overview
-
 ```
-┌─────────────────┐                           ┌─────────────────┐
-│   Client A      │                           │                 │
-│   (React +      │◄────── WebSocket ────────►│                 │
-│   CodeMirror)   │                           │                 │
-└─────────────────┘                           │                 │
-                                              │     Server      │
-┌─────────────────┐                           │   (Node.js)     │
-│   Client B      │                           │                 │
-│   (React +      │◄────── WebSocket ────────►│   • Rope        │
-│   CodeMirror)   │                           │   • Fenwick     │
-└─────────────────┘                           │   • Transform   │
-                                              │                 │
-┌─────────────────┐                           │                 │
-│   Client N      │                           │                 │
-│   (React +      │◄────── WebSocket ────────►│                 │
-│   CodeMirror)   │                           │                 │
-└─────────────────┘                           └─────────────────┘
-```
-
-### Component Architecture
-
-**Backend (Node.js + TypeScript)**
-- **CollabServer**: WebSocket server with connection management
-- **Rope**: Balanced binary tree for efficient text storage (insert/delete/charAt in O(log n))
-- **Fenwick Tree**: Position transformation tracking for historical operations
-- **Transform Engine**: Operational Transform with conflict resolution
-
-**Frontend (React + Vite + TypeScript)**
-- **CodeMirror 6**: Modern extensible text editor
-- **CollabClient**: WebSocket connection manager with auto-reconnect
-- **Outbox**: Client-side operation queue with rebase logic
-- **Interval Tree**: Cursor/selection tracking with overlap queries
-- **CursorManager**: Remote cursor rendering with color assignment
-- **Presence**: Real-time online user indicators
-
----
-
-## 🌲 Data Structures
-
-### 1. Rope (Balanced Binary Tree)
-
-**Purpose**: Efficient text storage and manipulation for large documents
-
-**Why Rope?** String concatenation is O(n) in JavaScript. Rope operations are O(log n), making them much faster for large documents.
-
-#### Structure Visualization
-
-```
-Rope for text: "Hello World!"
-
-                    [Root]
-                   weight=6
-                   /      \
-                 /          \
-            [Node]          [Node]
-           weight=5        weight=7
-           /    \          /      \
-         /        \      /          \
-    "Hello"      " "  "World"       "!"
-    (leaf)     (leaf) (leaf)      (leaf)
-```
-
-**Operations:**
-```typescript
-insert(pos: number, text: string)      // O(log n)
-delete(pos: number, len: number)       // O(log n)
-charAt(pos: number)                    // O(log n)
-substring(start: number, end: number)  // O(log n)
-```
-
-**Key Features:**
-- AVL balancing for guaranteed O(log n) height
-- Split and concatenate operations for efficient modifications
-- Leaf nodes contain text chunks, internal nodes store weights
-
----
-
-### 2. Fenwick Tree (Binary Indexed Tree)
-
-**Purpose**: Track cumulative position shifts from historical operations
-
-**Use Case**: When transforming an old operation, compute its new position by querying the Fenwick Tree for the cumulative shift at that position.
-
-#### Structure Visualization
-
-```
-Array-based tree structure for efficient prefix sum queries:
-
-Index:     1    2    3    4    5    6    7    8
-           │    │    │    │    │    │    │    │
-Tree:     [+5] [+3] [+2] [+1] [-2] [+4] [+1] [+6]
-           │    └────┴────┘    │    └────┴────┘
-           └─────────────────────────────────┘
-
-Binary Indexing (last set bit):
-- tree[1] = a[1]
-- tree[2] = a[1] + a[2]
-- tree[4] = a[1] + a[2] + a[3] + a[4]
-- tree[8] = sum of all previous elements
-
-Query complexity: O(log n)
-Update complexity: O(log n)
-```
-
-**Operations:**
-```typescript
-update(idx: number, delta: number)     // O(log n) - Add delta to position
-query(idx: number)                     // O(log n) - Get cumulative shift
-addInsert(pos: number, len: number)    // Add insert operation
-addDelete(pos: number, len: number)    // Add delete operation
-```
-
-**Example Transformation:**
-```
-Operations:
-1. Insert 5 chars at pos 10  → query(15) = +5
-2. Delete 3 chars at pos 20  → query(25) = +5-3 = +2
-3. Insert 2 chars at pos 15  → query(20) = +5-3+2 = +4
-
-Client with old op at pos 18 transforms to: 18 + query(18) = 22
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           AUTHORITATIVE BACKEND                         │
+│                           (Node.js • Port 8080)                         │
+│                                                                         │
+│   ┌────────────────────┐   ┌───────────────────┐   ┌────────────────┐   │
+│   │  Master AVL Rope   │   │     OT Engine     │   │  Interval Tree │   │
+│   │  O(log n) Document │   │  Split Deletion   │   │  Presence/     │   │
+│   │  + Embed Leaves    │   │  Tie-Breaking     │   │  Overlap Index │   │
+│   └─────────┬──────────┘   └─────────┬─────────┘   └────────┬───────┘   │
+│             │                        │                      │           │
+│   ┌─────────┴────────────────────────┴──────────────────────┴───────┐   │
+│   │                 Persistence Manager (node:sqlite)                │   │
+│   │      WAL Mode • Atomic Transactions • Snapshots • Op History    │   │
+│   └──────────────────────────────────┬──────────────────────────────┘   │
+│                                      │                                  │
+│   ┌──────────────────────────────────┴──────────────────────────────┐   │
+│   │                 Asset Manager (server/uploads/)                 │   │
+│   │       Magic Byte Validation • SHA-256 • Image Dimensions        │   │
+│   └──────────────────────────────────┬──────────────────────────────┘   │
+│                                      │                                  │
+│           HTTP REST (Assets) ◄───────┴───────► WebSocket (OT)           │
+└───────────────────────▲──────────────────────────────▲──────────────────┘
+                        │                              │
+        ┌───────────────┴───────────────┐              │
+        │ HTTP REST                     │ WebSockets   │ WebSockets
+        │ /api/assets                   │ ws://...     │ ws://...
+        ▼                               ▼              ▼
+┌──────────────────┐           ┌──────────────────┐  ┌──────────────────┐
+│ Frontend Client A│           │ Frontend Client B│  │ Frontend Client C│
+│ (localhost:5173) │           │ (localhost:5174) │  │ (localhost:5175) │
+│                  │           │                  │  │                  │
+│ • Local AVL Rope │           │ • Local AVL Rope │  │ • Local AVL Rope │
+│ • In-flight Op   │           │ • In-flight Op   │  │ • In-flight Op   │
+│ • Buffer Queue   │           │ • Buffer Queue   │  │ • Buffer Queue   │
+│ • Rich Editor UI │           │ • Rich Editor UI │  │ • Rich Editor UI │
+└──────────────────┘           └──────────────────┘  └──────────────────┘
 ```
 
 ---
 
-### 3. Interval Tree (Augmented Red-Black BST)
+## 🌲 Data Structures & Algorithms
 
-**Purpose**: Manage overlapping cursor/selection ranges efficiently
+### 1. AVL-Balanced Rope (`shared/rope.ts`)
+- **Node Structure**: Internal nodes maintain `weight` (left subtree length), `totalLength`, and `height`. Leaves store either UTF-16 text chunks or atomic `EmbedRef` records.
+- **Strict AVL Balancing**: Every insertion and deletion executes single (`rotateLeft`, `rotateRight`) or double rotations whenever balance factor $|h_L - h_R| > 1$.
+- **Subtree Split and Concatenation**: Splits in $O(\log n)$ time; joins two trees $T_1$ and $T_2$ in $O(|h_1 - h_2|)$ time along tree spines.
+- **Complexity**:
+  - `insert(pos, text)`: $O(\log n)$
+  - `insertEmbed(pos, embed)`: $O(\log n)$
+  - `delete(pos, len)`: $O(\log n)$
+  - `charAt(pos)`: $O(\log n)$
+  - `substring(start, end)`: $O(\log n)$
 
-**Use Case**: Find which remote cursors overlap with the visible viewport without checking all cursors.
+### 2. Operational Transformation Engine (`shared/transform.ts`)
+- **Insert vs. Insert**: Deterministic tie-breaking by `clientId`:
+  $$\text{If } pos_B < pos_A \lor (pos_B = pos_A \land clientId_B < clientId_A) \implies pos_A' = pos_A + len_B$$
+- **Insert vs. Delete**: An insertion at $P$ inside concurrently deleted range $[D, D + L_D)$ is preserved and lands at $pos = D$.
+- **Delete vs. Insert (Non-Subsuming Split)**: A deletion spanning an insert is divided around the inserted text:
+  1. Delete range $[D, P)$ of length $P - D$.
+  2. Delete range $[D + len_I, D + L_D)$ of length $(D + L_D) - P$.
+- **Delete vs. Delete**: Range intersection and relative set differences adjust deletion boundaries without double deletions or inverted bounds.
 
-#### Structure Visualization
+### 3. Augmented AVL Interval Tree (`shared/intervalTree.ts`)
+- **Half-Open Convention**: Stores user selections as $[start, end)$.
+- **Subtree Max Augmentation**: Each node tracks $node.max = \max(node.end, left.max, right.max)$.
+- **$O(\log n)$ Search**: Prunes subtrees where $left.max \le query.start$.
+- **Complete Deletion**: Deletes by `clientId` using two-child successor substitution and rebalances up the ancestor spine.
+- **Position Shifting (`shiftAll`)**: Dynamically shifts selection boundaries when document edits occur.
 
-```
-Interval Tree (Red-Black balanced):
+### 4. Fenwick Tree (`server/src/transformEngine.ts`)
+- Repurposed as a `RevisionDeltaIndex` to track net length deltas across committed revisions in $O(\log R)$ time, enabling rapid history position reconstruction.
 
-                    [10,15] max=25
-                    (BLACK)
-                   /              \
-                 /                  \
-        [5,8] max=12              [20,25] max=25
-        (RED)                      (BLACK)
-         /      \                  /        \
-       /          \              /            \
-  [3,6] max=12  [11,12] max=12  [18,22] max=22  [24,25] max=25
-  (BLACK)       (BLACK)          (RED)           (RED)
-
-Properties:
-- Each node stores: [start, end] interval + max endpoint in subtree
-- Red-Black balancing ensures O(log n) height
-- Augmented with 'max' for efficient overlap queries
-```
-
-**Operations:**
-```typescript
-insert(start: number, end: number, data: any)        // O(log n)
-findOverlapping(start: number, end: number)          // O(log n + k)
-shiftAll(pos: number, delta: number)                 // O(n)
-deleteNode(node: IntervalNode)                       // O(log n)
-```
-
-**Query Example:**
-```
-Cursors in tree:
-- Client A: [10, 15]  (selection)
-- Client B: [20, 20]  (cursor)
-- Client C: [12, 18]  (selection overlaps with A)
-
-findOverlapping(11, 14) → Returns: [Client A, Client C]
-```
+### 5. Persistent Revision Manager (`server/src/persistence.ts`)
+- SQLite database in `server/data/collab.sqlite` with Write-Ahead Logging (`WAL`).
+- Commits operations inside atomic `BEGIN IMMEDIATE` transactions.
+- Idempotently acknowledges duplicate operation IDs during lost-ACK scenarios.
+- Automatically captures full document snapshots every 10 revisions.
 
 ---
 
-## 🔄 Operational Transform
+## 💻 Multi-Client Local Setup
 
-The OT algorithm ensures that concurrent operations converge to the same final state across all clients.
-
-### Core Properties
-
-- **Convergence**: All clients reach the same state regardless of operation arrival order
-- **Causality**: Operations from the same client are applied in order
-- **Intention Preservation**: Each operation's intent is maintained after transformation
-
-### Transformation Rules
-
-```
-1. Insert vs Insert:
-   If pos1 < pos2: op1' = op1
-   If pos1 > pos2: op1'.pos = pos1 + len2
-   If pos1 == pos2: tie-break by clientId (lexicographic)
-
-2. Insert vs Delete:
-   If pos1 <= del_start: op1' = op1
-   If pos1 >= del_end: op1'.pos = pos1 - del_len
-   If pos1 in [del_start, del_end): op1'.pos = del_start
-
-3. Delete vs Insert:
-   If del_end <= pos2: op1' = op1
-   If del_start < pos2 < del_end: op1'.len += len2
-   If del_start >= pos2: op1'.pos += len2
-
-4. Delete vs Delete:
-   Compute intersection of ranges and adjust accordingly
-```
-
-### Example Scenario
-
-```
-Initial state: "hello"
-
-Client A: insert "!" at pos 5     →  "hello!"
-Client B: insert " world" at pos 5 →  "hello world"
-
-After OT transformation:
-Both clients converge to: "hello world!" (order determined by clientId)
-```
-
----
-
-## 🚀 Getting Started
+Run independent frontend clients in separate terminals on the same machine connecting to **one shared collaboration backend**.
 
 ### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-- Modern web browser (Chrome/Firefox/Safari/Edge)
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/harshitsaini17/dsa-text-editor.git
-cd dsa-text-editor
-
-# Install server dependencies
-cd server
-npm install
-
-# Install client dependencies
-cd ../client
-npm install
-```
-
-### Running the Application
-
-**Terminal 1 - Start Server:**
-```bash
-cd server
-npm run dev
-# Server running on ws://localhost:8080
-```
-
-**Terminal 2 - Start Client:**
-```bash
-cd client
-npm run dev
-# Client running on http://localhost:5173
-```
-
-**Testing with Multiple Clients:**
-1. Open `http://localhost:5173` in multiple browser tabs/windows
-2. Start editing simultaneously in different tabs
-3. Observe real-time updates and remote cursor tracking
+- Node.js 20+ (with native `--experimental-strip-types` and `node:sqlite`)
+- npm
 
 ---
 
-## 🧪 Testing
+### Step-by-Step Terminal Execution
 
-```bash
-# Run server tests
-cd server
-npm test
+#### Terminal 1 — Start Shared Collaboration Server (Port 8080)
+```powershell
+node --experimental-strip-types server/src/index.ts
+```
+*(Starts WebSocket server and HTTP REST API on `http://localhost:8080`)*
 
-# Run client tests
-cd client
-npm test
+#### Terminal 2 — Start Frontend Client A (Port 5173)
+```powershell
+npm --prefix client run dev:a
+```
+*(Runs: `vite --port 5173 --strictPort`)*
 
-# Run all tests with coverage
-npm run test:coverage
+#### Terminal 3 — Start Frontend Client B (Port 5174)
+```powershell
+npm --prefix client run dev:b
+```
+*(Runs: `vite --port 5174 --strictPort`)*
 
-# Run specific test suites
-npm test rope.test.ts
-npm test transform.test.ts
-npm test e2e.test.ts
+#### Terminal 4 — Start Frontend Client C (Port 5175)
+```powershell
+npm --prefix client run dev:c
+```
+*(Runs: `vite --port 5175 --strictPort`)*
+
+---
+
+### Browser Access URLs
+
+Open all three separate browser windows with the same document ID:
+
+* **Client A**: [http://localhost:5173/?doc=demo](http://localhost:5173/?doc=demo)
+* **Client B**: [http://localhost:5174/?doc=demo](http://localhost:5174/?doc=demo)
+* **Client C**: [http://localhost:5175/?doc=demo](http://localhost:5175/?doc=demo)
+
+All clients connect to the shared backend at `ws://localhost:8080` and `http://localhost:8080`.
+
+---
+
+## 🧪 Automated Testing
+
+The repository contains automated test suites covering all four phases.
+
+### Run All Tests
+```powershell
+node --experimental-strip-types --test test/rope.phase1.test.ts server/test/rope.test.ts test/e2e.test.ts test/fenwick.edge.test.ts test/benchmark.test.ts test/ot.phase2.test.ts test/phase3.test.ts test/phase4.test.ts
+```
+
+### Test Suite Summary
+
+```
+▶ Server Rope Data Structure (AVL-Balanced) .................. 15/15 PASS
+▶ Performance Benchmarks ..................................... 7/7 PASS
+▶ E2E: Two-client scenario & Concurrent Edits ................ 4/4 PASS
+▶ Fenwick Tree - Edge Cases .................................. 11/11 PASS
+▶ Phase 1: AVL Rope Core & Balancing Invariants .............. 12/12 PASS
+▶ Phase 2: Authoritative OT, Queues & Convergence ............ 8/8 PASS
+▶ Phase 3: Asset Management, Embeds, Interval Tree & Presence  14/14 PASS
+▶ Phase 4: Persistence, Snapshots, Gap Recovery & Multi-Client 8/8 PASS
+
+Total: 79 passed, 0 failed, 0 skipped
 ```
 
 ---
@@ -351,140 +221,59 @@ npm test e2e.test.ts
 ## 📁 Project Structure
 
 ```
+dsa-text-editor/
+├── package.json                   # Root scripts for server and clients
 ├── server/
+│   ├── package.json               # Server package configuration
 │   ├── src/
-│   │   ├── index.ts              # Server entry point
-│   │   ├── server.ts             # CollabServer with WebSocket logic
-│   │   ├── rope.ts               # Rope data structure
-│   │   ├── fenwick.ts            # Fenwick Tree
-│   │   ├── transform.ts          # OT algorithm
-│   │   ├── transformEngine.ts    # Transform engine with Fenwick
-│   │   └── types.ts              # Shared type definitions
+│   │   ├── index.ts               # Server startup entry point
+│   │   ├── server.ts              # CollabServer: HTTP REST & WebSocket room hub
+│   │   ├── persistence.ts         # SQLite Persistence Manager & atomic commits
+│   │   ├── assetManager.ts        # Persistent asset storage & magic byte validation
+│   │   ├── intervalTree.ts        # Interval Tree re-export
+│   │   ├── rope.ts                # Server Rope re-export
+│   │   ├── transform.ts           # Server OT re-export
+│   │   ├── transformEngine.ts     # Fenwick Tree RevisionDeltaIndex
+│   │   └── types.ts               # Server type re-exports
 │   └── test/
-│       ├── rope.test.ts          # Rope unit tests
-│       └── transform.test.ts     # OT unit tests
+│       └── rope.test.ts           # Server Rope unit tests
 ├── client/
-│   ├── src/
-│   │   ├── main.tsx              # Client entry point
-│   │   ├── App.tsx               # Main React component
-│   │   ├── Editor.tsx            # CodeMirror wrapper
-│   │   ├── connection.ts         # WebSocket client
-│   │   ├── outbox.ts             # Operation queue
-│   │   ├── rebase.ts             # Client-side OT
-│   │   ├── intervalTree.ts       # Interval Tree
-│   │   ├── cursorManager.ts      # Cursor tracking
-│   │   ├── Presence.tsx          # Online users UI
-│   │   └── types.ts              # Type definitions
-│   └── package.json
-├── test/
-│   ├── e2e.test.ts               # End-to-end tests
-│   ├── fenwick.edge.test.ts      # Fenwick edge cases
-│   └── benchmark.test.ts         # Performance benchmarks
-├── ARCHITECTURE.md               # Detailed architecture docs
-└── README.md                     # This file
+│   ├── package.json               # Frontend dependencies & multi-port scripts
+│   ├── vite.config.ts             # Vite configuration with strictPort
+│   └── src/
+│       ├── main.tsx               # Client React entry point
+│       ├── App.tsx                # App container, URL room routing & presence state
+│       ├── RichEditor.tsx         # Rope-driven editor, embeds, paste & selection
+│       ├── otClient.ts            # Jupiter client OT state machine & queues
+│       ├── connection.ts          # WebSocket transport & history catch-up
+│       ├── intervalTree.ts        # Client Interval Tree re-export
+│       ├── cursorManager.ts       # Cursor rendering and color management
+│       ├── components/
+│       │   ├── Toolbar.tsx        # Formatting & asset upload buttons
+│       │   ├── StatusBar.tsx      # Caret position & document length
+│       │   └── ClientsDropdown.tsx# Active collaborators list
+│       └── styles.css             # Editor, embed badges, and cursor styles
+├── shared/
+│   ├── rope.ts                    # Canonical AVL Rope data structure
+│   ├── transform.ts               # Canonical OT engine with split deletion
+│   ├── intervalTree.ts            # Canonical Augmented AVL Interval Tree
+│   └── types.ts                   # Canonical shared TypeScript interfaces
+└── test/
+    ├── rope.phase1.test.ts        # Phase 1: AVL balancing & embed tests
+    ├── ot.phase2.test.ts          # Phase 2: OT convergence & queue tests
+    ├── phase3.test.ts             # Phase 3: Asset manager & Interval Tree tests
+    ├── phase4.test.ts             # Phase 4: SQLite persistence & gap recovery tests
+    ├── e2e.test.ts                # End-to-end integration tests
+    ├── fenwick.edge.test.ts       # Fenwick Tree edge cases
+    └── benchmark.test.ts          # Performance benchmark suite
 ```
 
 ---
 
 ## 🛠️ Tech Stack
 
-**Backend:**
-- Node.js 18+
-- TypeScript 5.0+
-- ws (WebSocket library)
-- Jest (testing)
-
-**Frontend:**
-- React 18.2
-- Vite 4.5
-- TypeScript 5.0+
-- CodeMirror 6
-- WebSocket API
-
----
-
-## 👥 Team Members
-
-| Name | Role | Contributions |
-|------|------|--------------|
-| **Harshit Saini** | Backend Core | Rope data structure, WebSocket server, document management |
-| **Hitesh Saini** | Transform Engine | Fenwick Tree, position tracking, operation logging |
-| **Deepansh Singh** | Frontend & Cursors | Interval Tree, CursorManager, Presence UI |
-| **Parayush Kanphade** | OT & Integration | OT algorithms, client-side logic, CodeMirror integration |
-
----
-
-## 🔮 Future Enhancements
-
-- [ ] Persistent document storage (MongoDB/PostgreSQL)
-- [ ] User authentication and authorization
-- [ ] Document versioning and history
-- [ ] Rich text formatting support
-- [ ] File upload and attachments
-- [ ] Comments and annotations
-- [ ] Conflict-free Replicated Data Types (CRDTs) alternative
-- [ ] Horizontal scaling with document partitioning
-- [ ] Mobile app (React Native)
-- [ ] Collaborative code execution
-
----
-
-## 📚 Documentation
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed architecture and data structures
-- [Server API](./server/README.md) - Server-side API documentation
-- [Client API](./client/README.md) - Client-side API documentation
-
----
-
-## ⚠️ Known Issues
-
-- Interval Tree `deleteNode` is stub implementation (not required for MVP)
-- Jest types not installed (tests have type errors but logic is correct)
-- No persistence layer (documents lost on server restart)
-- Single server instance (no horizontal scaling)
-
----
-
-## 🤝 Contributing
-
-This is an academic project. Contributions, issues, and feature requests are welcome!
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details
-
----
-
-## 🙏 Acknowledgments
-
-- Built as part of advanced **Data Structures and Algorithms** coursework at **IIT Jodhpur**
-- Inspired by Google Docs and Operational Transformation research
-- [CodeMirror 6](https://codemirror.net/) for the excellent editor framework
-- WebSocket protocol for real-time communication
-
----
-
-## 📊 Project Status
-
-**Status:** ✅ MVP Complete | 🚧 Enhancements In Progress
-
-**Last Updated:** November 14, 2025
-
----
-
-<div align="center">
-
-**Built with ❤️ by the IIT Jodhpur CS Team**
-
-[⬆ Back to Top](#-collaborative-text-editor)
-
-</div>
+- **Backend**: Node.js 20+, TypeScript, WebSocket (`ws`), SQLite (`node:sqlite`)
+- **Frontend**: React 18, Vite 4, TypeScript, HTML5 ContentEditable
+- **Data Structures**: AVL Rope, Augmented AVL Interval Tree, Fenwick Tree
+- **Protocol**: JSON over WebSockets + HTTP multipart/stream REST
+- **Persistence**: SQLite (WAL mode) + Local filesystem asset storage

@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:a": "vite --port 5173 --strictPort",
+    "dev:b": "vite --port 5174 --strictPort",
+    "dev:c": "vite --port 5175 --strictPort",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "jest",
